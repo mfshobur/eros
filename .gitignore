@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Agent-generated files
+_task_*.py
+output/
+*.log
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+
+# Local scratch files
+playground.py
+README-test.md
+
+# Test/scratch data (committed files like requirements.txt, README.md are tracked explicitly)
+*.csv
+*.txt
+!README.md
+!requirements.txt
+
+# Runtime data
+.claude/
+
