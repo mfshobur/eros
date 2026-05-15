@@ -14,7 +14,7 @@ from rich.spinner import Spinner
 from rich.text import Text
 
 from config import load_config, save_default_model
-from agent import Agent
+from agent import Agent, _IMAGE_EXTS
 from tools.base import load_tools, get_all_tools, set_permission_callback, set_permission_mode, get_permission_mode
 from tools.bash import set_confirm_callback
 from rich import box as _box
@@ -135,6 +135,21 @@ def _file_inline(path: Path) -> str:
     if len(content) <= _INLINE_SIZE_LIMIT:
         return f'### {path}\n```\n{content.rstrip()}\n```'
     return f'### {path}\n(file too large to inline; use read_file with start_line/end_line to read in chunks)'
+
+
+def _extract_images(text: str) -> tuple[str, list[str]]:
+    """Extract @image.ext refs from text. Returns (text_without_image_refs, [paths])."""
+    images: list[str] = []
+    def replacer(m):
+        if m.group(0).startswith("\\@"):
+            return m.group(0)
+        path = Path(m.group(1))
+        if path.suffix.lower() in _IMAGE_EXTS and path.exists():
+            images.append(str(path))
+            return ""
+        return m.group(0)
+    cleaned = re.sub(r"\\?@([^\s,;:!?\"']+)", replacer, text).strip()
+    return cleaned, images
 
 
 def _expand_file_refs(text: str) -> str:
@@ -459,13 +474,16 @@ def main(
         elif user_input.lower().endswith("/think"):
             display_input = user_input[:-len("/think")].rstrip()
 
-        expanded = _expand_file_refs(user_input)
-        if expanded != user_input:
-            found = [m for m in re.findall(r"@(\S+)", user_input) if Path(m).exists()]
+        text_input, images = _extract_images(user_input)
+        expanded = _expand_file_refs(text_input)
+        if images:
+            print_info(f"  image: {', '.join(Path(p).name for p in images)}")
+        elif expanded != text_input:
+            found = [m for m in re.findall(r"@(\S+)", text_input) if Path(m).exists()]
             if found:
-                print_info(f"  📎 attached: {', '.join(found)}")
+                print_info(f"  attached: {', '.join(found)}")
 
-        _run_chat(agent, state, expanded, original_input=display_input, raw_input=user_input)
+        _run_chat(agent, state, expanded, original_input=display_input, raw_input=user_input, images=images)
         console.print()
 
 
@@ -503,7 +521,7 @@ def _auto_save_code_blocks(response: str, user_input: str) -> None:
     print_info(f"  💾 auto-saved to [cyan]{filename}[/cyan]")
 
 
-def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = "", raw_input: str = "") -> None:
+def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = "", raw_input: str = "", images: list[str] | None = None) -> None:
     started_at = time.monotonic()
     token_buffer: list[str] = []
     tool_log: list[dict] = []
@@ -593,6 +611,7 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
             on_tool_call=on_tool_call,
             on_tool_result=on_tool_result,
             complexity_hint=raw_input or user_input,
+            images=images,
         )
         result = {"response": response, "thinking_tokens": thinking_tokens, "usage": usage}
 

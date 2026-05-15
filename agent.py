@@ -1,4 +1,6 @@
+import base64
 import json
+import mimetypes
 import os
 import platform
 import re
@@ -80,6 +82,20 @@ def _load_project_context() -> str:
             except OSError:
                 pass
     return ""
+
+
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def _encode_image(path: str) -> dict | None:
+    """Return a LiteLLM vision content block for a local image file."""
+    try:
+        mime = mimetypes.guess_type(path)[0] or "image/png"
+        with open(path, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+        return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}
+    except OSError:
+        return None
 
 
 _TOOL_PROMPT_TEMPLATE = """
@@ -366,11 +382,19 @@ class Agent:
         total = sum(len(str(m.get("content", ""))) for m in messages)
         return total // 4  # rough chars-to-tokens ratio
 
-    def _build_messages(self, user_input: str, tools: list[dict]) -> list[dict]:
+    def _build_messages(self, user_input: str, tools: list[dict], images: list[str] | None = None) -> list[dict]:
         history = self.history[-self.max_turns * 2:]
         messages = [{"role": "system", "content": self._effective_system_prompt(tools)}]
         messages += history
-        messages.append({"role": "user", "content": user_input})
+        if images:
+            blocks: list[dict] = [{"type": "text", "text": user_input}]
+            for path in images:
+                block = _encode_image(path)
+                if block:
+                    blocks.append(block)
+            messages.append({"role": "user", "content": blocks})
+        else:
+            messages.append({"role": "user", "content": user_input})
         return messages
 
     def context_usage(self) -> tuple[int, int]:
@@ -392,6 +416,7 @@ class Agent:
         on_tool_result: Callable[[str, str], None] | None = None,
         think: bool | None = None,
         complexity_hint: str | None = None,
+        images: list[str] | None = None,
     ) -> tuple[str, int]:
         self._maybe_summarize_history(complexity_hint or user_input)
         tools = self._get_tools()
@@ -406,7 +431,7 @@ class Agent:
             if last_error:
                 user_input = f"{user_input}\n\n[Previous script attempt failed: {last_error}]"
 
-        messages = self._build_messages(user_input, tools)
+        messages = self._build_messages(user_input, tools, images=images)
         self.history.append({"role": "user", "content": user_input})
         final_response, thinking_tokens, usage = self._run_loop(messages, tools, on_token, on_thinking, on_tool_call, on_tool_result, think)
         final_response = final_response or ""

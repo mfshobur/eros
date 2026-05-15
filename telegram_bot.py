@@ -1,5 +1,6 @@
 import asyncio
 import json
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -142,15 +143,10 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _run_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user_input: str, images: list[str] | None = None) -> None:
     user_id = update.effective_user.id
-    if user_id not in _load_users():
-        await update.message.reply_text("Send /start <secret> to pair first.")
-        return
-
     config = context.bot_data["config"]
     agent = _get_agent(user_id, config)
-    user_input = update.message.text or ""
     room = f"tg_{user_id}"
 
     mode = _user_modes.get(user_id, "manual")
@@ -286,6 +282,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             on_token=on_token,
             on_tool_call=on_tool_call,
             on_tool_result=on_tool_result,
+            images=images,
         )
     except Exception as e:
         if msg_holder[0] is not None:
@@ -319,6 +316,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(final)
     rooms.save_turn(room, agent.model, user_input, final, tools=tool_log if tool_log else None)
 
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if user_id not in _load_users():
+        await update.message.reply_text("Send /start <secret> to pair first.")
+        return
+    await _run_agent_chat(update, context, update.message.text or "")
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if user_id not in _load_users():
+        await update.message.reply_text("Send /start <secret> to pair first.")
+        return
+    caption = update.message.caption or "What's in this image?"
+    photo = update.message.photo[-1]  # highest resolution
+    tg_file = await photo.get_file()
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        await tg_file.download_to_drive(tmp_path)
+        await _run_agent_chat(update, context, caption, images=[tmp_path])
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -378,6 +399,7 @@ def _build_app(config: dict):
     app.add_handler(CommandHandler("thinking", cmd_thinking))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message, block=False))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo, block=False))
     app.add_handler(CallbackQueryHandler(handle_approval))
     return app
 
