@@ -65,10 +65,19 @@ def list_rooms() -> list[dict]:
     return result
 
 
-def save_turn(room: str, model: str, user: str, assistant: str) -> None:
+def _brief_args(args: dict) -> str:
+    for key in ("path", "query", "command", "url"):
+        if key in args and args[key]:
+            return str(args[key])[:50]
+    return next((str(v)[:50] for v in args.values() if v), "")
+
+
+def save_turn(room: str, model: str, user: str, assistant: str, tools: list[dict] | None = None) -> None:
     init()
     p = _room_path(room)
-    entry = {"ts": datetime.now().isoformat(), "model": model, "user": user, "assistant": assistant}
+    entry: dict = {"ts": datetime.now().isoformat(), "model": model, "user": user, "assistant": assistant}
+    if tools:
+        entry["tools"] = [{"name": t["name"], "args": t.get("args", {})} for t in tools]
     with open(p, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -97,7 +106,12 @@ def load_messages(room: str, max_turns: int = 50) -> list[dict]:
         try:
             e = json.loads(line)
             messages.append({"role": "user", "content": e["user"]})
-            messages.append({"role": "assistant", "content": e["assistant"]})
+            tool_entries = e.get("tools", [])
+            asst = e["assistant"]
+            if tool_entries:
+                summary = " | ".join(f"[called {t['name']}: {_brief_args(t.get('args', {}))}]" for t in tool_entries)
+                asst = f"{summary}\n\n{asst}"
+            messages.append({"role": "assistant", "content": asst})
         except (json.JSONDecodeError, KeyError):
             pass
     return messages

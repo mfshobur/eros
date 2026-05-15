@@ -166,6 +166,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     tools_fired = [False]
 
     buffer: list[str] = []
+    tool_log: list[dict] = []
     edit_version = [0]
     last_edit_at = [0.0]
     streaming = [True]
@@ -209,6 +210,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             asyncio.run_coroutine_threadsafe(_catchup(), loop)
 
     def on_tool_call(name: str, args: dict) -> None:
+        tool_log.append({"name": name, "args": args})
         tools_fired[0] = True
         edit_version[0] += 1
 
@@ -242,6 +244,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     _SILENT_TOOLS = {"web_search", "web_fetch", "list_dir", "read_file"}
 
     def on_tool_result(name: str, result: str) -> None:
+        for entry in reversed(tool_log):
+            if entry["name"] == name and "result" not in entry:
+                entry["result"] = result
+                break
         if name in _SILENT_TOOLS or result.strip() == "Cancelled by user.":
             return
         preview = result[:300] + ("..." if len(result) > 300 else "")
@@ -311,7 +317,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(final, parse_mode="Markdown")
         except Exception:
             await update.message.reply_text(final)
-    rooms.save_turn(room, agent.model, user_input, final)
+    rooms.save_turn(room, agent.model, user_input, final, tools=tool_log if tool_log else None)
 
 
 

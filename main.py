@@ -502,6 +502,7 @@ def _auto_save_code_blocks(response: str, user_input: str) -> None:
 def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = "", raw_input: str = "") -> None:
     started_at = time.monotonic()
     token_buffer: list[str] = []
+    tool_log: list[dict] = []
     thinking_buffer: list[str] = []
     thinking_visible: list[bool] = [agent.show_thinking]
     first_token: list[bool] = [True]
@@ -556,6 +557,7 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
             console.print(text, end="", markup=False, highlight=False, style="dim italic")
 
     def on_tool_call(name: str, args: dict) -> None:
+        tool_log.append({"name": name, "args": args})
         _stop_md_live()
         _stop_spinner()
         token_buffer.clear()
@@ -566,6 +568,10 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
         _start_spinner()
 
     def on_tool_result(name: str, result: str) -> None:
+        for entry in reversed(tool_log):
+            if entry["name"] == name and "result" not in entry:
+                entry["result"] = result
+                break
         _stop_spinner()
         print_tool_result(name, result)
         first_token[0] = True
@@ -594,7 +600,7 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
                 state["room"] = new_name
             state.pop("auto_rename", None)
 
-        rooms.save_turn(state["room"], agent.model, user_input, response)
+        rooms.save_turn(state["room"], agent.model, user_input, response, tools=tool_log if tool_log else None)
         rooms.save_meta(state["room"], {"model": agent.model})
         rooms.save_last_room(state["room"])
 
