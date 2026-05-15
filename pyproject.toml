@@ -14,12 +14,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+telegram = ["python-telegram-bot>=20.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [project.scripts]
 eros = "main:app"
+eros-telegram = "telegram_bot:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

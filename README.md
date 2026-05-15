@@ -196,6 +196,39 @@ This is the core reliability mechanism for small models. Instead of hoping a 4b 
 - **Edit verification**: after every `edit_file`, the file is re-read to confirm the change applied
 - **Auto-save**: if the model pastes a code block instead of calling `write_file`, eros saves it to disk automatically
 
+## Telegram Bot
+
+Run eros as a Telegram bot — same agent, same tools, from your phone.
+
+**Setup:**
+
+```bash
+uv pip install -e ".[telegram]"
+```
+
+Add to `config.yaml`:
+
+```yaml
+telegram:
+  token: ""        # token from BotFather
+  pair_secret: ""  # users must send /start <secret> to pair
+```
+
+Then run `eros` as usual — the bot starts automatically in the background.
+
+Users send `/start <secret>` to pair. Each user gets their own conversation history. Tool calls stream as message edits; use `/permissions` to toggle manual approval mode.
+
+**Bot commands:**
+
+| Command | Description |
+|---|---|
+| `/start <secret>` | Pair with the bot |
+| `/clear` | Clear conversation history |
+| `/model <name>` | Switch model |
+| `/permissions` | Toggle auto/manual tool approval |
+| `/thinking` | Toggle reasoning display |
+| `/help` | Show commands |
+
 ## Architecture
 
 ```
