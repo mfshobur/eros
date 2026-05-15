@@ -41,6 +41,19 @@ import urllib.request
 app = typer.Typer(add_completion=False)
 
 
+def _start_telegram(config: dict) -> None:
+    try:
+        import telegram_bot
+    except ImportError:
+        return  # python-telegram-bot not installed
+    token = config.get("telegram", {}).get("token", "")
+    if token:
+        telegram_bot.run_in_thread(config)
+        print("Telegram bot running in background.")
+    else:
+        telegram_bot.setup_interactive(config)
+
+
 def _ollama_model_ids(base_url: str) -> set[str]:
     with urllib.request.urlopen(base_url + "/api/tags", timeout=2) as r:
         data = json.loads(r.read())
@@ -346,6 +359,8 @@ def main(
     set_permission_mode(initial_mode)
     rooms.init()
 
+    _start_telegram(config)
+
     agent = Agent(config)
     last_room = rooms.load_last_room()
     if room:
@@ -510,8 +525,6 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
 
     def _stop_md_live() -> None:
         if md_live:
-            if token_buffer:
-                md_live[0].update(Markdown("".join(token_buffer)))
             md_live[0].stop()
             md_live.clear()
 
@@ -523,18 +536,16 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
             stream_start.append(time.monotonic())
             _stop_spinner()
             live = Live(
-                Markdown(""),
+                Text(""),
                 console=console,
-                refresh_per_second=8,
+                refresh_per_second=15,
                 vertical_overflow="visible",
-                transient=False,
+                transient=True,
             )
             live.start()
             md_live.append(live)
         if md_live:
-            elapsed = time.monotonic() - stream_start[0] if stream_start else 0
-            if token_count[0] % 8 == 0 or elapsed < 0.5:
-                md_live[0].update(Markdown("".join(token_buffer) + " ▌"))
+            md_live[0].update(Text("".join(token_buffer) + " ▌"))
 
     def on_thinking(text: str) -> None:
         thinking_buffer.append(text)
@@ -602,6 +613,8 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
     finally:
         _stop_md_live()
         _stop_spinner()
+        if token_buffer:
+            console.print(Markdown("".join(token_buffer)))
 
     if result.get("response", "").strip():
         _auto_save_code_blocks(result["response"], user_input)

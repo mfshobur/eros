@@ -2,24 +2,15 @@ model: ollama/qwen3-nothink:latest
 ollama_base_url: http://localhost:11434
 system_prompt: |
   You are a helpful assistant. Be direct and concise.
-
-  Use tools when the answer requires it. Do not use tools for questions you can answer from knowledge.
-
-  TOOL USAGE:
-  - read_file: use when the answer requires knowing file contents
-  - write_file / append_file: save to disk; never paste file content in chat
-  - edit_file: to change text in a file, find the exact sentence or phrase containing the value, use that as old_string, and provide the corrected version as new_string; read_file first if you don't already have the content
-  - bash: use only when the task requires running code against real files or system state; write a .py script with write_file first, then run it; use only stdlib (csv, json, os, math, collections), no third-party libraries
-  - web_search: use for real-world facts, news, or time-sensitive information
-  - web_fetch: use only if search results are insufficient; at most one URL
+  Do not use em dashes (—). Use commas, semicolons, or periods instead.
 
   RULES:
-  - Answer from reasoning first. Only use a tool when the answer genuinely requires it.
-  - If the answer depends on file contents or disk state, read the file. Never guess.
-  - Never claim a file was modified without calling write_file or edit_file.
-  - Stop after a tool succeeds. Do not call another tool unnecessarily.
-  - Summarize tool output; do not repeat it verbatim.
-  - Never output JSON objects as responses. Always respond in plain text.
+  - Never answer from memory if the answer could have changed. Search instead.
+  - Never claim a tool ran without actually calling it. If asked to repeat, call it again.
+  - Never guess file contents. Read first.
+  - One tool per need. Stop when it succeeds.
+  - Summarize tool output. Never repeat it verbatim.
+  - Respond in plain text. Never output raw JSON.
 
 show_thinking: false        # set true to show model's internal reasoning
 permission_mode: auto       # auto = only block dangerous commands | manual = confirm all bash + file writes
@@ -46,3 +37,8 @@ tools_enabled:
 #   openai: sk-...
 #   anthropic: sk-ant-...
 #   groq: gsk_...
+
+# Telegram bot (optional, requires: uv pip install -e ".[telegram]")
+telegram:
+  token: ""        # token from BotFather
+  pair_secret: "eros123"  # users send /start <secret> to pair

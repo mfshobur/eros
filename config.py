@@ -34,3 +34,15 @@ def save_default_model(model: str, path: Path | None = None) -> None:
     text = re.sub(r"^model:.*$", f"model: {model}", text, flags=re.MULTILINE)
     with open(p, "w") as f:
         f.write(text)
+
+
+def save_telegram_config(token: str, pair_secret: str, path: Path | None = None) -> None:
+    """Write telegram.token and telegram.pair_secret into config.yaml."""
+    import re
+    p = path or DEFAULT_CONFIG_PATH
+    with open(p) as f:
+        text = f.read()
+    text = re.sub(r'(telegram:.*?token:\s*)"[^"]*"', rf'\1"{token}"', text, flags=re.DOTALL)
+    text = re.sub(r'(telegram:.*?pair_secret:\s*)"[^"]*"', rf'\1"{pair_secret}"', text, flags=re.DOTALL)
+    with open(p, "w") as f:
+        f.write(text)

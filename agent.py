@@ -47,19 +47,23 @@ def _claims_file_change(text: str) -> bool:
 
 
 def _env_context() -> str:
+    from datetime import datetime
     system = platform.system()
     release = platform.release()
     machine = platform.machine()
     shell = os.environ.get("SHELL", "unknown").split("/")[-1]
     cwd = os.getcwd()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     if system == "Darwin":
         os_name = f"macOS {release} ({machine})"
     elif system == "Linux":
         os_name = f"Linux {release} ({machine})"
     else:
         os_name = f"{system} {release} ({machine})"
+    day = datetime.now().strftime("%A")
     return (
-        f"\n\nEnvironment: OS={os_name}, shell={shell}, cwd={cwd}. "
+        f"\n\nToday is {day}, {now}. "
+        f"Environment: OS={os_name}, shell={shell}, cwd={cwd}. "
         f"Use OS-appropriate commands (e.g. on macOS use `du -d1` not `du --max-depth=1`, "
         f"`gstat` instead of `stat` if needed, BSD flags for `ls`/`find`)."
     )
