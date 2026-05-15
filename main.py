@@ -362,6 +362,10 @@ def main(
     _start_telegram(config)
 
     agent = Agent(config)
+    for _ctx in ("EROS.md", "CLAUDE.md"):
+        if Path(_ctx).exists():
+            print_info(f"  📎 Project context: [cyan]{_ctx}[/cyan]")
+            break
     last_room = rooms.load_last_room()
     if room:
         current_room = room
