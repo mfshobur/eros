@@ -120,6 +120,8 @@ def _render_models(models: list[dict], idx: int, current: str,
     t.add_column("Provider", style="dim", min_width=8, no_wrap=True)
     t.add_column("Model", min_width=20, no_wrap=True)
     t.add_column("Size", style="dim", min_width=8, no_wrap=True)
+    t.add_column("Params", style="dim", min_width=4, no_wrap=True)
+    t.add_column("Quant", style="dim", min_width=8, no_wrap=True)
     t.add_column("", width=8, no_wrap=True)
 
     window = models[scroll:scroll + visible]
@@ -134,6 +136,8 @@ def _render_models(models: list[dict], idx: int, current: str,
             m["provider"],
             f"[{name_sty}]{m['name']}[/{name_sty}]",
             m["size"],
+            f"[dim]{m.get('params', '')}[/dim]",
+            f"[dim]{m.get('quant', '')}[/dim]",
             active,
         )
 
@@ -266,15 +270,18 @@ def _fetch_ollama_models(base_url: str) -> list[dict]:
         url = base_url.rstrip("/") + "/api/tags"
         with urllib.request.urlopen(url, timeout=3) as r:
             data = json.loads(r.read())
-        return [
-            {
-                "id": f"ollama/{m['name']}",
+        models = []
+        for m in data.get("models", []):
+            details = m.get("details", {})
+            models.append({
                 "provider": "ollama",
                 "name": m["name"],
                 "size": _fmt_size(m.get("size", 0)),
-            }
-            for m in data.get("models", [])
-        ]
+                "params": details.get("parameter_size", ""),
+                "quant": details.get("quantization_level", ""),
+                "id": f"ollama/{m['name']}",
+            })
+        return models
     except Exception:
         return []
 
