@@ -370,6 +370,28 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
             images=last["images"],
         )
 
+    elif command == "/export":
+        from datetime import datetime
+        turns = rooms.load_turns(state["room"], max_turns=9999)
+        if not turns:
+            print_error("No conversation to export.")
+            return
+        filename = arg.strip() if arg else f"{state['room']}-{datetime.now().strftime('%Y%m%d-%H%M')}.md"
+        if not filename.endswith(".md"):
+            filename += ".md"
+        lines = [f"# {state['room']}\n"]
+        for t in turns:
+            ts = t.get("ts", "")[:16].replace("T", " ")
+            model = t.get("model", "")
+            lines.append(f"## [{ts}] ({model})\n")
+            lines.append(f"**You:** {t.get('user', '')}\n")
+            if t.get("tools"):
+                for tool in t["tools"]:
+                    lines.append(f"> tool: `{tool['name']}`\n")
+            lines.append(f"**AI:** {t.get('assistant', '')}\n")
+        Path(filename).write_text("\n".join(lines))
+        print_info(f"Exported {len(turns)} turns to [cyan]{filename}[/cyan]")
+
     else:
         print_error(f"Unknown command: {command}. Type /help for a list.")
 

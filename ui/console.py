@@ -35,6 +35,7 @@ def print_help() -> None:
         "  [cyan]/forget <keyword>[/cyan]     Remove memories matching keyword\n"
         "  [cyan]/memories[/cyan]             List all stored memories\n"
         "  [cyan]/retry[/cyan]                Regenerate the last response\n"
+        "  [cyan]/export [filename][/cyan]    Export current room to a markdown file\n"
         "  [cyan]/history[/cyan]               Show conversation history summary\n"
         "  [cyan]/search <query>[/cyan]        Search across all rooms\n"
         "\n"
