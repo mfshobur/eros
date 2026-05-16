@@ -1,3 +1,7 @@
+import subprocess
+import sys
+import tempfile
+import time
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -126,6 +130,46 @@ _style = Style.from_dict({
 })
 
 
+_clip_images: list[str] = []  # actual paths, indexed by [image #N]
+
+
+def _clipboard_image_path() -> tuple[str, str] | None:
+    """Save macOS clipboard image to a temp file. Returns (path, placeholder) or None."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        tmp = Path(tempfile.gettempdir()) / f"eros_clip_{int(time.time())}.png"
+        result = subprocess.run(
+            ["osascript", "-e", f"""
+                try
+                    set img to (the clipboard as «class PNGf»)
+                    set fp to open for access POSIX file "{tmp}" with write permission
+                    set eof of fp to 0
+                    write img to fp
+                    close access fp
+                    return "ok"
+                on error
+                    return ""
+                end try
+            """],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.stdout.strip() == "ok" and tmp.exists() and tmp.stat().st_size > 0:
+            _clip_images.append(str(tmp))
+            return str(tmp), f"[image #{len(_clip_images)}]"
+    except Exception:
+        pass
+    return None
+
+
+def _clipboard_text() -> str:
+    """Return macOS clipboard text content."""
+    try:
+        return subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2).stdout
+    except Exception:
+        return ""
+
+
 def _make_bindings() -> KeyBindings:
     kb = KeyBindings()
 
@@ -148,6 +192,28 @@ def _make_bindings() -> KeyBindings:
     @kb.add("escape", "enter")
     def _newline(event):
         event.current_buffer.insert_text("\n")
+
+    @kb.add("backspace")
+    def _backspace(event):
+        import re
+        buf = event.current_buffer
+        before = buf.document.text_before_cursor
+        m = re.search(r'\[image #\d+\]$', before)
+        if m:
+            buf.delete_before_cursor(len(m.group(0)))
+        else:
+            buf.delete_before_cursor(1)
+
+    @kb.add("c-v")
+    def _paste(event):
+        result = _clipboard_image_path()
+        if result:
+            _, placeholder = result
+            event.current_buffer.insert_text(placeholder)
+        else:
+            text = _clipboard_text()
+            if text:
+                event.current_buffer.insert_text(text)
 
     return kb
 

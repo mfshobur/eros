@@ -15,6 +15,7 @@ from rich.text import Text
 
 from config import load_config, save_default_model
 from agent import Agent, _IMAGE_EXTS
+from ui.input import _clip_images
 from tools.base import load_tools, get_all_tools, set_permission_callback, set_permission_mode, get_permission_mode
 from tools.bash import set_confirm_callback
 from rich import box as _box
@@ -135,6 +136,19 @@ def _file_inline(path: Path) -> str:
     if len(content) <= _INLINE_SIZE_LIMIT:
         return f'### {path}\n```\n{content.rstrip()}\n```'
     return f'### {path}\n(file too large to inline; use read_file with start_line/end_line to read in chunks)'
+
+
+def _resolve_clip_refs(text: str) -> tuple[str, list[str]]:
+    """Replace [image #N] placeholders with actual paths from clipboard history."""
+    images: list[str] = []
+    def replacer(m):
+        n = int(m.group(1)) - 1
+        if 0 <= n < len(_clip_images):
+            images.append(_clip_images[n])
+            return ""
+        return m.group(0)
+    cleaned = re.sub(r'\[image #(\d+)\]', replacer, text).strip()
+    return cleaned, images
 
 
 def _extract_images(text: str) -> tuple[str, list[str]]:
@@ -474,7 +488,9 @@ def main(
         elif user_input.lower().endswith("/think"):
             display_input = user_input[:-len("/think")].rstrip()
 
-        text_input, images = _extract_images(user_input)
+        text_input, clip_images = _resolve_clip_refs(user_input)
+        text_input, file_images = _extract_images(text_input)
+        images = clip_images + file_images
         expanded = _expand_file_refs(text_input)
         if images:
             print_info(f"  image: {', '.join(Path(p).name for p in images)}")
@@ -484,6 +500,8 @@ def main(
                 print_info(f"  attached: {', '.join(found)}")
 
         _run_chat(agent, state, expanded, original_input=display_input, raw_input=user_input, images=images)
+        for p in clip_images:
+            Path(p).unlink(missing_ok=True)
         console.print()
 
 
