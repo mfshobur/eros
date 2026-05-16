@@ -24,6 +24,7 @@ SLASH_COMMANDS = [
     ("/forget",      "Remove memories matching a keyword"),
     ("/memories",    "List all stored memories"),
     ("/retry",       "Regenerate the last response"),
+    ("/export",      "Export current room conversation to markdown"),
     ("/clear",       "Clear conversation history"),
     ("/history",     "Show turns in context"),
     ("/rooms",       "Browse and switch chat rooms (interactive)"),
