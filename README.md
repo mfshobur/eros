@@ -257,6 +257,19 @@ On startup, eros connects to each server, discovers its tools, and registers the
 
 MCP servers run as child processes connected via stdio. Each server runs in its own background thread so tool calls remain synchronous from the agent's perspective.
 
+## Prompt Templates
+
+Save and reuse common prompts with a short name.
+
+| Command | Description |
+|---|---|
+| `/tsave <name> <text>` | Save a prompt template |
+| `/t <name>` | Run a saved template (sends it as a message) |
+| `/templates` | List all saved templates |
+| `/tdelete <name>` | Delete a template |
+
+Templates are stored in `~/.local/share/eros/templates.jsonl`. Saving with an existing name overwrites it.
+
 ## Telegram Bot
 
 Run eros as a Telegram bot — same agent, same tools, from your phone.

@@ -196,6 +196,44 @@ def delete_memory(keyword: str) -> int:
     return removed
 
 
+_TEMPLATES_FILE = BASE_DIR.parent / "templates.jsonl"
+
+
+def load_templates() -> list[dict]:
+    if not _TEMPLATES_FILE.exists():
+        return []
+    result = []
+    for line in _TEMPLATES_FILE.read_text().splitlines():
+        try:
+            result.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return result
+
+
+def save_template(name: str, prompt: str) -> None:
+    _TEMPLATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    existing = [t for t in load_templates() if t["name"] != name]
+    existing.append({"name": name, "prompt": prompt})
+    _TEMPLATES_FILE.write_text("\n".join(json.dumps(t) for t in existing) + "\n")
+
+
+def delete_template(name: str) -> bool:
+    templates = load_templates()
+    kept = [t for t in templates if t["name"] != name]
+    if len(kept) == len(templates):
+        return False
+    _TEMPLATES_FILE.write_text("\n".join(json.dumps(t) for t in kept) + ("\n" if kept else ""))
+    return True
+
+
+def get_template(name: str) -> str | None:
+    for t in load_templates():
+        if t["name"] == name:
+            return t["prompt"]
+    return None
+
+
 def clear_room(room: str) -> None:
     p = _room_path(room)
     if p.exists():

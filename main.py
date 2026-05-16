@@ -354,6 +354,45 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
                 console.print(f"  [dim]·[/dim] {f}")
             console.print()
 
+    elif command == "/tsave":
+        parts = arg.split(None, 1)
+        if len(parts) < 2:
+            print_error("Usage: /tsave <name> <prompt text>")
+        else:
+            rooms.save_template(parts[0], parts[1])
+            print_info(f"Template saved: [cyan]{parts[0]}[/cyan]")
+
+    elif command == "/t":
+        if not arg:
+            print_error("Usage: /t <name>")
+        else:
+            prompt = rooms.get_template(arg)
+            if prompt is None:
+                print_error(f"Template not found: {arg}")
+            else:
+                _run_chat(agent, state, prompt, original_input=prompt, raw_input=prompt)
+                state["last_turn"] = {"expanded": prompt, "original_input": prompt, "raw_input": prompt, "images": []}
+
+    elif command == "/templates":
+        templates = rooms.load_templates()
+        if not templates:
+            print_info("No templates. Use /tsave <name> <prompt> to create one.")
+        else:
+            console.print("\n[bold]Templates:[/bold]")
+            for t in templates:
+                preview = t["prompt"][:60] + ("…" if len(t["prompt"]) > 60 else "")
+                console.print(f"  [cyan]{t['name']}[/cyan]  [dim]{preview}[/dim]")
+            console.print()
+
+    elif command == "/tdelete":
+        if not arg:
+            print_error("Usage: /tdelete <name>")
+        else:
+            if rooms.delete_template(arg):
+                print_info(f"Deleted template: [cyan]{arg}[/cyan]")
+            else:
+                print_error(f"Template not found: {arg}")
+
     elif command == "/retry":
         last = state.get("last_turn")
         if not last:
