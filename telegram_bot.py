@@ -459,7 +459,7 @@ def main() -> None:
     if not token:
         raise SystemExit("telegram.token not set in config.yaml")
     rooms.init()
-    load_tools(config.get("tools_enabled", []))
+    load_tools(config.get("tools_enabled", []), config=config)
     print(f"eros Telegram bot starting (model: {config['model']})")
     _user_modes.update(_load_modes())
     _build_app(config).run_polling()

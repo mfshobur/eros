@@ -381,7 +381,7 @@ def main(
     if no_tools:
         config["tools_enabled"] = []
 
-    load_tools(config.get("tools_enabled", []))
+    load_tools(config.get("tools_enabled", []), config=config)
     set_confirm_callback(confirm)
     set_permission_callback(_permission_ui)
     initial_mode = config.get("permission_mode", "auto")

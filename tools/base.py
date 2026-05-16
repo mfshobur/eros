@@ -92,7 +92,7 @@ def dispatch_tool(name: str, args: dict) -> str:
         return f"Error running {name}: {e}"
 
 
-def load_tools(enabled: list[str]) -> None:
+def load_tools(enabled: list[str], config: dict | None = None) -> None:
     module_map = {
         "file_ops": "tools.file_ops",
         "bash": "tools.bash",
@@ -104,3 +104,6 @@ def load_tools(enabled: list[str]) -> None:
         mod = module_map.get(group)
         if mod:
             importlib.import_module(mod)
+    if config and config.get("mcp_servers"):
+        from tools.mcp import load_mcp_servers
+        load_mcp_servers(config)
