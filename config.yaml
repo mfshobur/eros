@@ -38,6 +38,17 @@ tools_enabled:
 #   anthropic: sk-ant-...
 #   groq: gsk_...
 
+# MCP servers (optional, requires: uv pip install -e ".[mcp]")
+# mcp_servers:
+#   - name: filesystem
+#     command: npx
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#   - name: github
+#     command: npx
+#     args: ["-y", "@modelcontextprotocol/server-github"]
+#     env:
+#       GITHUB_TOKEN: "ghp_..."
+
 # Telegram bot (optional, requires: uv pip install -e ".[telegram]")
 telegram:
   token: ""        # token from BotFather

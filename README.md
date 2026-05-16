@@ -149,12 +149,26 @@ Models with `<think>...</think>` reasoning are fully supported. Reasoning tokens
 - **Force reasoning per message**: append `/think` to override the global setting for one turn.
 - **Per-model defaults**: set `show_thinking` under `model_defaults` in `config.yaml` to configure each model automatically.
 
+## Project Context (EROS.md / CLAUDE.md)
+
+Drop an `EROS.md` file in your project root to give the agent persistent, project-specific instructions — framework conventions, coding rules, things to never modify, etc. It is automatically loaded on startup and injected into the system prompt before every message.
+
+```markdown
+# EROS.md
+This is a Django 4.2 project. Always use type hints.
+Never modify files in migrations/. Use Black formatting.
+```
+
+`CLAUDE.md` is also supported as a fallback (for users migrating from Claude Code). Eros prints a notice on startup when a context file is found. Changes to the file take effect on the next message without restarting.
+
 ## File References
 
 Type `@` followed by a path to attach a file or folder to your message:
 
 - **`@filename.py`**: inlines the file content for the model to read
 - **`@src/components/`**: attaches all files in a directory (up to 20 files)
+- **`@photo.png`** (or `.jpg`, `.webp`, `.gif`): attaches an image for vision-capable models
+- **`Ctrl+V`**: paste an image from your clipboard directly into the prompt
 - Files up to 20,000 chars are inlined; larger files get a hint to use `read_file`
 - Tab autocomplete lists all files in the current directory tree
 
@@ -196,6 +210,34 @@ This is the core reliability mechanism for small models. Instead of hoping a 4b 
 - **Edit verification**: after every `edit_file`, the file is re-read to confirm the change applied
 - **Auto-save**: if the model pastes a code block instead of calling `write_file`, eros saves it to disk automatically
 
+## MCP Servers
+
+Eros supports [Model Context Protocol](https://modelcontextprotocol.io) servers — plug in any third-party MCP server (filesystem, GitHub, Slack, databases, Gmail, etc.) without modifying eros itself.
+
+**Setup:**
+
+```bash
+uv pip install -e ".[mcp]"
+```
+
+Add to `config.yaml`:
+
+```yaml
+mcp_servers:
+  - name: filesystem
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "ghp_..."
+```
+
+On startup, eros connects to each server, discovers its tools, and registers them automatically. All MCP tools appear in `/tools` alongside built-in tools and are available to the model immediately.
+
+MCP servers run as child processes connected via stdio. Each server runs in its own background thread so tool calls remain synchronous from the agent's perspective.
+
 ## Telegram Bot
 
 Run eros as a Telegram bot — same agent, same tools, from your phone.
@@ -216,7 +258,7 @@ telegram:
 
 Then run `eros` as usual — the bot starts automatically in the background.
 
-Users send `/start <secret>` to pair. Each user gets their own conversation history. Tool calls stream as message edits; use `/permissions` to toggle manual approval mode.
+Users send `/start <secret>` to pair. Each user gets their own conversation history. Tool calls stream as message edits; use `/permissions` to toggle manual approval mode. Photos sent to the bot are passed directly to the model for vision tasks.
 
 **Bot commands:**
 
@@ -245,7 +287,8 @@ eros/
 │   ├── file_ops.py  # read_file, write_file, append_file, edit_file, list_dir
 │   ├── bash.py      # bash execution with safety confirmation
 │   ├── web.py       # web_fetch, web_search
-│   └── git.py       # git_status, git_diff, git_log, git_commit
+│   ├── git.py       # git_status, git_diff, git_log, git_commit
+│   └── mcp.py       # MCP server client: connects, discovers, and registers MCP tools
 │
 ├── ui/
 │   ├── console.py   # Rich terminal output (panels, Markdown, tool display)
@@ -257,7 +300,8 @@ eros/
 │
 └── tests/
     ├── test_agent.py     # complexity detection, hallucination guard, permissions
-    └── test_file_ops.py  # write/read/edit/append/list roundtrips
+    ├── test_file_ops.py  # write/read/edit/append/list roundtrips
+    └── test_mcp.py       # MCPTool, load_mcp_servers, filesystem integration
 ```
 
 ### How the agent loop works
