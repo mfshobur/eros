@@ -327,6 +327,33 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
         else:
             print_error(f"Room not found: {arg}")
 
+    elif command == "/remember":
+        if not arg or ": " not in arg:
+            print_error("Usage: /remember key: value  (e.g. /remember name: Shobur)")
+        else:
+            cap = agent.config.get("max_memories", 20)
+            if rooms.save_memory(arg, max_memories=cap):
+                print_info(f"Remembered: [cyan]{arg}[/cyan]")
+            else:
+                print_error(f"Memory full ({cap} entries). Use /forget <keyword> to free space.")
+
+    elif command == "/forget":
+        if not arg:
+            print_error("Usage: /forget <keyword>")
+        else:
+            n = rooms.delete_memory(arg)
+            print_info(f"Removed {n} memory entry(s) matching '[cyan]{arg}[/cyan]'.")
+
+    elif command == "/memories":
+        facts = rooms.load_memories()
+        if not facts:
+            print_info("No memories stored. Use /remember key: value to add one.")
+        else:
+            console.print("\n[bold]Memories:[/bold]")
+            for f in facts:
+                console.print(f"  [dim]·[/dim] {f}")
+            console.print()
+
     elif command == "/retry":
         last = state.get("last_turn")
         if not last:
@@ -411,6 +438,9 @@ def main(
         if Path(_ctx).exists():
             print_info(f"  📎 Project context: [cyan]{_ctx}[/cyan]")
             break
+    _mem_count = len(rooms.load_memories())
+    if _mem_count:
+        print_info(f"  🧠 {_mem_count} memory(s) loaded")
     last_room = rooms.load_last_room()
     if room:
         current_room = room

@@ -150,6 +150,24 @@ Models with `<think>...</think>` reasoning are fully supported. Reasoning tokens
 - **Force reasoning per message**: append `/think` to override the global setting for one turn.
 - **Per-model defaults**: set `show_thinking` under `model_defaults` in `config.yaml` to configure each model automatically.
 
+## Long-Term Memory
+
+Eros can remember facts across sessions. Memories are stored as compact `key: value` pairs in `~/.local/share/eros/memory.md` and injected into the system prompt on every turn — so the model always knows them, across all rooms and restarts.
+
+```
+/remember name: Shobur
+/remember preferred_lang: TypeScript
+/remember project: eros (local AI agent)
+```
+
+| Command | Description |
+|---|---|
+| `/remember key: value` | Save a fact (persists across sessions) |
+| `/forget <keyword>` | Remove all memories matching keyword |
+| `/memories` | List all stored memories |
+
+A startup notice shows how many memories are loaded. The cap (`max_memories` in `config.yaml`, default 20) keeps injection size small — important for local small models.
+
 ## Project Context (EROS.md / CLAUDE.md)
 
 Drop an `EROS.md` file in your project root to give the agent persistent, project-specific instructions — framework conventions, coding rules, things to never modify, etc. It is automatically loaded on startup and injected into the system prompt before every message.
@@ -302,8 +320,7 @@ eros/
 └── tests/
     ├── test_agent.py     # complexity detection, hallucination guard, permissions
     ├── test_file_ops.py  # write/read/edit/append/list roundtrips
-    └── test_mcp.py       # MCPTool, load_mcp_servers, filesystem integration
-```
+    └── test_mcp.py       # MCPTool, load_mcp_servers, filesystem integration```
 
 ### How the agent loop works
 
