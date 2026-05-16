@@ -25,6 +25,7 @@ history_file: ~/.local/share/eros/history.jsonl
 max_history_turns: 50       # number of conversation turns to keep in context
 max_tokens: 8192
 max_tool_iterations: 8      # max tool calls per response before stopping
+max_memories: 20            # max long-term memory entries (/remember)
 
 tools_enabled:
   - file_ops

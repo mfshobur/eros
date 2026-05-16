@@ -165,6 +165,37 @@ def search_rooms(query: str) -> list[dict]:
     return results
 
 
+_MEMORY_FILE = BASE_DIR.parent / "memory.md"
+
+
+def load_memories() -> list[str]:
+    """Return list of 'key: value' strings."""
+    if not _MEMORY_FILE.exists():
+        return []
+    return [l.strip() for l in _MEMORY_FILE.read_text().splitlines() if ": " in l.strip()]
+
+
+def save_memory(entry: str, max_memories: int = 20) -> bool:
+    """Append a 'key: value' entry. Returns False if cap reached."""
+    if len(load_memories()) >= max_memories:
+        return False
+    _MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with _MEMORY_FILE.open("a") as f:
+        f.write(f"{entry.strip()}\n")
+    return True
+
+
+def delete_memory(keyword: str) -> int:
+    """Remove all entries containing keyword. Returns count removed."""
+    if not _MEMORY_FILE.exists():
+        return 0
+    lines = _MEMORY_FILE.read_text().splitlines()
+    kept = [l for l in lines if keyword.lower() not in l.lower()]
+    removed = len(lines) - len(kept)
+    _MEMORY_FILE.write_text("\n".join(kept) + ("\n" if kept else ""))
+    return removed
+
+
 def clear_room(room: str) -> None:
     p = _room_path(room)
     if p.exists():

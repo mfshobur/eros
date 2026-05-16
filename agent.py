@@ -70,6 +70,14 @@ def _env_context() -> str:
         f"`gstat` instead of `stat` if needed, BSD flags for `ls`/`find`)."
     )
 
+def _load_memories() -> str:
+    from memory.rooms import load_memories
+    facts = load_memories()
+    if not facts:
+        return ""
+    return "\n\n# Memory\n" + "\n".join(facts)
+
+
 def _load_project_context() -> str:
     from pathlib import Path
     for name in ("EROS.md", "CLAUDE.md"):
@@ -372,7 +380,7 @@ class Agent:
 
     def _effective_system_prompt(self, tools: list[dict]) -> str:
         """For models without native tool calling, append tool instructions."""
-        system = self._base_system_prompt + _load_project_context() + _env_context()
+        system = self._base_system_prompt + _load_project_context() + _load_memories() + _env_context()
         if not tools or _uses_native_tools(self.model):
             return system
         tool_list = _build_tool_descriptions(tools)
