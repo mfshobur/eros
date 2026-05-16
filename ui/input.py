@@ -20,6 +20,7 @@ SLASH_COMMANDS = [
     ("/thinking",         "Toggle thinking output on/off"),
     ("/token-generated",  "Toggle live tok/s display"),
     ("/system",      "Override system prompt"),
+    ("/retry",       "Regenerate the last response"),
     ("/clear",       "Clear conversation history"),
     ("/history",     "Show turns in context"),
     ("/rooms",       "Browse and switch chat rooms (interactive)"),

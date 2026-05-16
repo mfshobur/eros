@@ -327,6 +327,22 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
         else:
             print_error(f"Room not found: {arg}")
 
+    elif command == "/retry":
+        last = state.get("last_turn")
+        if not last:
+            print_error("Nothing to retry.")
+            return
+        if len(agent.history) >= 2:
+            agent.history = agent.history[:-2]
+        print_info("Retrying last message...")
+        _run_chat(
+            agent, state,
+            last["expanded"],
+            original_input=last["original_input"],
+            raw_input=last["raw_input"],
+            images=last["images"],
+        )
+
     else:
         print_error(f"Unknown command: {command}. Type /help for a list.")
 
@@ -500,6 +516,7 @@ def main(
                 print_info(f"  attached: {', '.join(found)}")
 
         _run_chat(agent, state, expanded, original_input=display_input, raw_input=user_input, images=images)
+        state["last_turn"] = {"expanded": expanded, "original_input": display_input, "raw_input": user_input, "images": images}
         for p in clip_images:
             Path(p).unlink(missing_ok=True)
         console.print()

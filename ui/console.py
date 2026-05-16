@@ -31,6 +31,7 @@ def print_help() -> None:
         "  [cyan]/thinking[/cyan]              Toggle thinking output on/off\n"
         "  [cyan]/token-generated[/cyan]       Toggle live tok/s display\n"
         "  [cyan]/permissions[/cyan]           Toggle manual/auto approval for tool calls\n"
+        "  [cyan]/retry[/cyan]                 Regenerate the last response\n"
         "  [cyan]/history[/cyan]               Show conversation history summary\n"
         "  [cyan]/search <query>[/cyan]        Search across all rooms\n"
         "\n"

@@ -88,6 +88,7 @@ Set API keys in `config.yaml` under `api_keys:` or as environment variables (`OP
 | `/room-new`               | New room, named automatically from your first message          |
 | `/room-delete <name>`     | Delete a room                                                  |
 | `/search <query>`         | Search across all rooms by keyword                             |
+| `/retry`                  | Regenerate the last response (re-runs the same message)        |
 | `/thinking`               | Toggle reasoning display on/off (Qwen3, DeepSeek, etc.)        |
 | `/token-generated`        | Toggle live tok/s display after each response                  |
 | `/permissions`            | Toggle manual/auto tool approval mode                          |
