@@ -275,6 +275,25 @@ On startup, eros connects to each server, discovers its tools, and registers the
 
 MCP servers run as child processes connected via stdio. Each server runs in its own background thread so tool calls remain synchronous from the agent's perspective.
 
+### Exposing eros as an MCP server
+
+Eros also works the other way around — it can expose its own built-in tools (`read_file`, `write_file`, `bash`, `git_*`, `web_*`) as an MCP server, so any MCP client (Claude Desktop, another eros instance, etc.) can use them.
+
+```bash
+uv pip install -e ".[mcp]"
+eros-mcp-server          # serves eros's tools over stdio
+```
+
+To wire it into another eros instance, add to that instance's `config.yaml`:
+
+```yaml
+mcp_servers:
+  - name: eros
+    command: eros-mcp-server
+```
+
+The server exposes the tools enabled in `tools_enabled`. **Security note:** this includes `bash`, so only run `eros-mcp-server` for clients you trust — restrict `tools_enabled` to a safe subset if needed. Dangerous bash patterns (`rm`, `dd`, etc.) are still blocked.
+
 ## Prompt Templates
 
 Save and reuse common prompts with a short name.
