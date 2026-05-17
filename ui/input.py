@@ -19,6 +19,7 @@ SLASH_COMMANDS = [
     ("/tools",       "List available tools"),
     ("/thinking",         "Toggle thinking output on/off"),
     ("/token-generated",  "Toggle live tok/s display"),
+    ("/permissions",      "Toggle manual/auto tool approval mode"),
     ("/system",      "Override system prompt"),
     ("/remember",    "Save a fact to long-term memory (key: value)"),
     ("/forget",      "Remove memories matching a keyword"),
