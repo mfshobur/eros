@@ -89,7 +89,7 @@ Set API keys in `config.yaml` under `api_keys:` or as environment variables (`OP
 | `/room-delete <name>`     | Delete a room                                                  |
 | `/search <query>`         | Search across all rooms by keyword                             |
 | `/retry`                  | Regenerate the last response (re-runs the same message)        |
-| `/export [filename]`          | Export current room to a markdown file                         |
+| `/export [filename]`      | Export current room to a markdown file                         |
 | `/thinking`               | Toggle reasoning display on/off (Qwen3, DeepSeek, etc.)        |
 | `/token-generated`        | Toggle live tok/s display after each response                  |
 | `/permissions`            | Toggle manual/auto tool approval mode                          |
@@ -97,6 +97,13 @@ Set API keys in `config.yaml` under `api_keys:` or as environment variables (`OP
 | `/system <text>`          | Override system prompt for this session                        |
 | `/clear`                  | Clear conversation history (current room)                      |
 | `/history`                | Show turns in context + current room name                      |
+| `/remember <key>: <val>`  | Save a fact to long-term memory (persists across sessions)     |
+| `/forget <keyword>`       | Remove memories matching a keyword                             |
+| `/memories`               | List all stored memories                                       |
+| `/tsave <name> <text>`    | Save a prompt template                                         |
+| `/t <name>`               | Run a saved template                                           |
+| `/templates`              | List all saved templates                                       |
+| `/tdelete <name>`         | Delete a template                                              |
 | `/help`                   | Show all commands                                              |
 | `/exit`                   | Quit                                                           |
 
