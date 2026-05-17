@@ -18,6 +18,7 @@ from agent import Agent, _IMAGE_EXTS
 from ui.input import _clip_images
 from tools.base import load_tools, get_all_tools, set_permission_callback, set_permission_mode, get_permission_mode
 from tools.bash import set_confirm_callback
+from tools.interaction import set_ask_callback
 from rich import box as _box
 from rich.panel import Panel
 from rich.rule import Rule
@@ -725,6 +726,28 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
         first_token[0] = True
         _start_spinner()
 
+    def _ask(question: str, options: list | None = None) -> str:
+        _stop_md_live()
+        _stop_spinner()
+        console.print()
+        console.print(Panel(
+            question,
+            title="[bold magenta]Agent needs clarification[/bold magenta]",
+            border_style="magenta",
+            padding=(0, 1),
+        ))
+        if options:
+            for i, opt in enumerate(options, 1):
+                console.print(f"  [cyan]{i}[/cyan]. {opt}")
+        answer = console.input("[bold]Your answer: [/bold]").strip()
+        if options and answer.isdigit():
+            idx = int(answer) - 1
+            if 0 <= idx < len(options):
+                answer = options[idx]
+        _start_spinner()
+        return answer or "(no answer given)"
+
+    set_ask_callback(_ask)
     _start_spinner()
 
     result: dict = {}

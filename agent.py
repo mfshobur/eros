@@ -48,6 +48,42 @@ def _claims_file_change(text: str) -> bool:
     return bool(_FILE_CHANGE_CLAIMS.search(text))
 
 
+# Interrogative-form clarification ("Which file should I delete?")
+_CLARIFY_CUE = re.compile(
+    r"\b(which|what|where|who|whom|when|"
+    r"should i|shall i|do you want|would you like|could you|can you|"
+    r"did you mean|specify|clarify)\b",
+    re.IGNORECASE,
+)
+
+# Imperative-form clarification ("Please provide the file name.")
+_CLARIFY_IMPERATIVE = re.compile(
+    r"\b(please (?:provide|specify|tell me|clarify|confirm)|"
+    r"(?:could|can) you (?:provide|specify|clarify|tell me)|"
+    r"i need (?:to know|more (?:details|information|context))|"
+    r"let me know which)\b",
+    re.IGNORECASE,
+)
+
+_MAX_CLARIFY = 3  # max clarification rounds per turn
+
+
+def _looks_like_question(text: str) -> bool:
+    """True if the response is a short, standalone clarification request.
+
+    Small local models reliably ask for clarification in plain text instead of
+    calling the ask_user tool; this lets the agent loop catch that and route it
+    through the same clarification flow. Catches both interrogative form
+    ("Which file?") and imperative form ("Please provide the file name.").
+    """
+    t = text.strip()
+    if not t or len(t) > 250 or "\n\n" in t:
+        return False
+    if t.endswith("?") and _CLARIFY_CUE.search(t):
+        return True
+    return bool(_CLARIFY_IMPERATIVE.search(t))
+
+
 def _env_context() -> str:
     from datetime import datetime
     system = platform.system()
@@ -138,6 +174,8 @@ Never try to do everything in one command. Never hardcode data you already read 
 WHEN TO USE A TOOL:
 - Only when the task literally requires it: reading a file, running a command, searching the web, git operations.
 - Do NOT use a tool for: greetings, math, general knowledge, definitions, coding questions, or anything you can answer directly.
+- When the request is genuinely ambiguous and you cannot proceed safely: call the ask_user tool. Do NOT ask the question in plain text and do NOT guess.
+  Example: user says "delete the file" without naming one → output {{"name": "ask_user", "arguments": {{"question": "Which file should I delete?"}}}}
 
 WHEN NOT TO USE A TOOL: just reply in plain text:
 - "hello" → reply normally
@@ -657,6 +695,7 @@ class Agent:
         last_tool_error: dict[str, str] = {}
         last_tool_sig: str | None = None
         repeat_count = 0
+        clarify_rounds = 0
         total_thinking_tokens = 0
         total_usage: dict = {"prompt": 0, "completion": 0, "total": 0}
 
@@ -679,7 +718,22 @@ class Agent:
                         "The file has NOT been changed. You must call the appropriate tool now to make the change."
                     )})
                     continue
-                return response_text, total_thinking_tokens, total_usage
+                # Small models ask for clarification in plain text instead of
+                # calling ask_user. Catch that and route it through the same
+                # clarification flow by synthesizing an ask_user call.
+                if (clarify_rounds < _MAX_CLARIFY
+                        and "ask_user" in get_all_tools()
+                        and _looks_like_question(response_text)):
+                    clarify_rounds += 1
+                    tool_calls = [{
+                        "id": "clarify",
+                        "function": {
+                            "name": "ask_user",
+                            "arguments": json.dumps({"question": response_text.strip()}),
+                        },
+                    }]
+                else:
+                    return response_text, total_thinking_tokens, total_usage
 
             if _uses_native_tools(self.model):
                 messages.append({

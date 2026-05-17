@@ -230,6 +230,23 @@ This is the core reliability mechanism for small models. Instead of hoping a 4b 
 - **Edit verification**: after every `edit_file`, the file is re-read to confirm the change applied
 - **Auto-save**: if the model pastes a code block instead of calling `write_file`, eros saves it to disk automatically
 
+## Agent Clarification
+
+When a request is genuinely ambiguous, the model asks you a clarifying question instead of guessing. It pauses the turn and shows a prompt:
+
+```
+╭─ Agent needs clarification ─────────────────╮
+│  Which config file did you mean?            │
+╰─────────────────────────────────────────────╯
+  1. config.yaml
+  2. pyproject.toml
+Your answer:
+```
+
+Type a free-text answer, or a number to pick one of the offered options. Your answer is fed back to the model and it continues the same turn.
+
+This works two ways: capable models call the built-in `ask_user` tool directly, while small local models — which tend to ask in plain text — are caught automatically. When a model replies with a short clarification request instead of acting, eros routes it through the same prompt. Either way you get asked rather than the model guessing. Detection is conservative: it only triggers on short, clearly interrogative or "please provide…" responses, so normal answers are never interrupted.
+
 ## MCP Servers
 
 Eros supports [Model Context Protocol](https://modelcontextprotocol.io) servers — plug in any third-party MCP server (filesystem, GitHub, Slack, databases, Gmail, etc.) without modifying eros itself.
