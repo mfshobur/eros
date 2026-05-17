@@ -138,3 +138,96 @@ class TestPermissions:
         assert get_permission_mode() == "manual"
         set_permission_mode("auto")
         assert get_permission_mode() == "auto"
+
+
+# ── Constrained tool-calling reliability layer ───────────────────────────────
+
+import json as _json
+
+
+def _reliability_agent():
+    return Agent({"model": "ollama/test", "constrained_tool_calls": "auto"})
+
+
+class TestRunLoopValidation:
+    """Args failing a tool's schema are rejected before dispatch."""
+
+    def test_missing_required_arg_blocks_dispatch(self, monkeypatch):
+        from tools.base import load_tools
+        load_tools(["file_ops"])
+        agent = _reliability_agent()
+
+        seen = {"first": False}
+
+        def fake_stream(self_, messages, tools, on_token, on_thinking, think=None):
+            if not seen["first"]:
+                seen["first"] = True
+                bad = {"id": "t0", "function": {
+                    "name": "edit_file",
+                    "arguments": _json.dumps({"path": "a.py"}),  # missing old/new
+                }}
+                return ("", "", [bad], {})
+            return ("done", "", [], {})
+
+        dispatched = []
+        monkeypatch.setattr("agent.Agent._stream_response", fake_stream)
+        monkeypatch.setattr("agent.dispatch_tool",
+                             lambda n, a: dispatched.append(n) or "ok")
+
+        out, _, _ = agent._run_loop([], [{"function": {"name": "edit_file"}}],
+                                    None, None, None, None)
+        assert agent.reliability.arg_validation_failures == 1
+        assert dispatched == []  # dispatch never reached
+        assert out == "done"
+
+
+class TestConstrainedRetry:
+    """A narrated/malformed turn triggers exactly one schema-constrained regen."""
+
+    def test_narration_triggers_one_constrained_retry(self, monkeypatch):
+        from tools.base import load_tools
+        load_tools(["bash"])
+        agent = _reliability_agent()
+
+        stream_calls = {"n": 0}
+
+        def fake_stream(self_, messages, tools, on_token, on_thinking, think=None):
+            stream_calls["n"] += 1
+            if stream_calls["n"] == 1:
+                return ("I'll run bash to list the files", "", [], {})
+            return ("final answer", "", [], {})
+
+        ollama_calls = []
+
+        def fake_ollama(self_, messages, think, on_token, on_thinking, response_format=None):
+            ollama_calls.append(response_format)
+            call = {"id": "c0", "function": {
+                "name": "bash", "arguments": _json.dumps({"command": "ls"})}}
+            return ("", "", [call], {})
+
+        monkeypatch.setattr("agent.Agent._stream_response", fake_stream)
+        monkeypatch.setattr("agent.Agent._stream_ollama", fake_ollama)
+        monkeypatch.setattr("agent.dispatch_tool", lambda n, a: "files listed")
+
+        out, _, _ = agent._run_loop([], [{"function": {"name": "bash"}}],
+                                    None, None, None, None)
+        assert len(ollama_calls) == 1                 # exactly one retry
+        assert ollama_calls[0] is not None            # with a format schema
+        assert agent.reliability.constrained_retry_uses == 1
+        assert agent.reliability.constrained_retry_success == 1
+        assert agent.reliability.plaintext_narration_caught == 1
+
+    def test_disabled_mode_skips_retry(self, monkeypatch):
+        agent = Agent({"model": "ollama/test", "constrained_tool_calls": "off"})
+
+        def fake_stream(self_, messages, tools, on_token, on_thinking, think=None):
+            return ("I'll run bash now", "", [], {})
+
+        ollama_calls = []
+        monkeypatch.setattr("agent.Agent._stream_response", fake_stream)
+        monkeypatch.setattr("agent.Agent._stream_ollama",
+                             lambda *a, **k: ollama_calls.append(1) or ("", "", [], {}))
+
+        agent._run_loop([], [{"function": {"name": "bash"}}], None, None, None, None)
+        assert ollama_calls == []
+        assert agent.reliability.constrained_retry_uses == 0

@@ -28,6 +28,7 @@ SLASH_COMMANDS = [
     ("/export",      "Export current room conversation to markdown"),
     ("/clear",       "Clear conversation history"),
     ("/history",     "Show turns in context"),
+    ("/reliability", "Show tool-call reliability metrics"),
     ("/rooms",       "Browse and switch chat rooms (interactive)"),
     ("/room-new",    "Create a new room (named from first message)"),
     ("/room-delete", "Delete a room by name"),

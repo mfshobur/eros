@@ -97,6 +97,7 @@ Set API keys in `config.yaml` under `api_keys:` or as environment variables (`OP
 | `/system <text>`          | Override system prompt for this session                        |
 | `/clear`                  | Clear conversation history (current room)                      |
 | `/history`                | Show turns in context + current room name                      |
+| `/reliability`            | Show tool-call reliability metrics for this session            |
 | `/remember <key>: <val>`  | Save a fact to long-term memory (persists across sessions)     |
 | `/forget <keyword>`       | Remove memories matching a keyword                             |
 | `/memories`               | List all stored memories                                       |
@@ -261,6 +262,40 @@ Your answer:
 Type a free-text answer, or a number to pick one of the offered options. Your answer is fed back to the model and it continues the same turn.
 
 This works two ways: capable models call the built-in `ask_user` tool directly, while small local models — which tend to ask in plain text — are caught automatically. When a model replies with a short clarification request instead of acting, eros routes it through the same prompt. Either way you get asked rather than the model guessing. Detection is conservative: it only triggers on short, clearly interrogative or "please provide…" responses, so normal answers are never interrupted.
+
+## Constrained Tool Calling
+
+Small models fail at tool calling in predictable ways: broken JSON
+(`{"name":"bash" "command":...}`), tool calls narrated as prose
+(`[called bash: ls]`), or missing required arguments. eros recovers from all of
+these — and, where it can, *prevents* them rather than only salvaging them.
+
+- **Schema-constrained regeneration** — the first attempt streams free-form
+  (natural prose preserved). If that turn produced no parseable tool call but
+  *looks like an attempted one*, eros regenerates the turn once with a JSON
+  Schema sent as Ollama's `format` parameter, which grammar-constrains the
+  output so the result is parseable by construction.
+- **Argument validation** — parsed tool arguments are checked against each
+  tool's own schema before dispatch. A missing or wrong-typed argument produces
+  a precise, actionable message (e.g. *"Tool 'edit_file' is missing required
+  argument 'old_string'"*) fed back to the model instead of a generic crash.
+- **Plain-text narration detection** — when the model describes a tool call in
+  prose instead of emitting one, eros detects it and triggers the constrained
+  regeneration above.
+
+Constrained regeneration applies to **Ollama models only** — cloud providers
+(OpenAI, Anthropic, Groq) already emit reliable native tool calls and are
+unaffected. Argument validation runs for every provider.
+
+Configure with `constrained_tool_calls` in `config.yaml`:
+
+```yaml
+constrained_tool_calls: auto   # auto = regenerate malformed tool calls under a JSON schema | off = disable
+```
+
+Run `/reliability` any time to see this session's metrics — model turns,
+first-pass tool-call success rate, parser-fallback uses, constrained retries
+(and how many succeeded), plain-text calls caught, and arg-validation failures.
 
 ## MCP Servers
 

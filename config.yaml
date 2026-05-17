@@ -26,6 +26,7 @@ max_history_turns: 50       # number of conversation turns to keep in context
 max_tokens: 8192
 max_tool_iterations: 8      # max tool calls per response before stopping
 max_memories: 20            # max long-term memory entries (/remember)
+constrained_tool_calls: auto  # auto = regenerate malformed/narrated tool calls under a JSON schema (Ollama only) | off = disable
 
 tools_enabled:
   - file_ops
