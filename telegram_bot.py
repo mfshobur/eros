@@ -17,8 +17,7 @@ from telegram.ext import (
 
 from agent import Agent
 from config import load_config
-from tools.base import load_tools, set_permission_callback, set_permission_mode
-from tools.bash import set_confirm_callback
+from tools.base import load_tools, set_permission_callback, set_permission_mode, PermissionDecision
 import memory.rooms as rooms
 
 _USERS_FILE = Path.home() / ".local" / "share" / "eros" / "telegram_users.json"
@@ -249,31 +248,27 @@ async def _run_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE, us
         preview = result[:300] + ("..." if len(result) > 300 else "")
         asyncio.run_coroutine_threadsafe(update.message.reply_text(f"🔧 {name}: {preview}"), loop)
 
-    def permission_callback(tool_name: str, args: dict, preview: str) -> bool:
+    def permission_callback(tool_name: str, args: dict, preview: str, dangerous: bool = False) -> PermissionDecision:
         if _user_modes.get(user_id, "manual") != "manual":
-            return True
+            return PermissionDecision("once", "")
         event = threading.Event()
         _pending[user_id] = event
-        _pending_result[user_id] = False
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Allow", callback_data=f"approve:{user_id}"),
-                InlineKeyboardButton("Always Allow", callback_data=f"always:{user_id}"),
-                InlineKeyboardButton("Deny", callback_data=f"deny:{user_id}"),
-            ]
-        ])
+        _pending_result[user_id] = PermissionDecision("deny", "")
+        buttons = [InlineKeyboardButton("Allow", callback_data=f"approve:{user_id}")]
+        if not dangerous:
+            buttons.append(InlineKeyboardButton("Always Allow", callback_data=f"always:{user_id}"))
+        buttons.append(InlineKeyboardButton("Deny", callback_data=f"deny:{user_id}"))
         asyncio.run_coroutine_threadsafe(
             update.message.reply_text(
                 f"🔧 Allow {tool_name}?\n{preview}",
-                reply_markup=keyboard,
+                reply_markup=InlineKeyboardMarkup([buttons]),
             ),
             loop,
         )
         event.wait(timeout=60)
-        return _pending_result.get(user_id, False)
+        return _pending_result.get(user_id, PermissionDecision("deny", ""))
 
     set_permission_callback(permission_callback)
-    set_confirm_callback(lambda prompt, default=False: permission_callback("bash", {}, prompt))
 
     try:
         response, _, _ = await asyncio.to_thread(
@@ -353,17 +348,17 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     uid = int(uid_str)
 
     if action == "always":
-        _user_modes[uid] = "auto"
-        _save_modes()
-        _pending_result[uid] = True
+        _pending_result[uid] = PermissionDecision("always", "")
+    elif action == "approve":
+        _pending_result[uid] = PermissionDecision("once", "")
     else:
-        _pending_result[uid] = action == "approve"
+        _pending_result[uid] = PermissionDecision("deny", "")
     if uid in _pending:
         _pending[uid].set()
         del _pending[uid]
 
     if action == "always":
-        label = "✅ Always Allowed (switched to auto)"
+        label = "✅ Always Allowed (won't ask again here)"
     elif action == "approve":
         label = "✅ Allowed"
     else:

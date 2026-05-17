@@ -1,10 +1,16 @@
+import os
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from typing import Any
 
 _REGISTRY: dict[str, "BaseTool"] = {}
 
+# A permission callback returns one of these. action ∈ {"once", "always", "deny"}.
+PermissionDecision = namedtuple("PermissionDecision", ["action", "note"])
+
 _permission_mode: str = "auto"
-_permission_callback = None  # fn(tool_name, args, preview) -> bool
+_permission_callback = None  # fn(tool_name, args, preview, dangerous) -> PermissionDecision
+_pending_note: str = ""      # note from the last permission prompt, for the agent loop
 
 
 def set_permission_callback(fn) -> None:
@@ -21,13 +27,32 @@ def set_permission_mode(mode: str) -> None:
     _permission_mode = mode
 
 
-def request_permission(tool_name: str, args: dict, preview: str) -> bool:
+def consume_permission_note() -> str:
+    """Return the note from the last permission prompt and clear it."""
+    global _pending_note
+    note = _pending_note
+    _pending_note = ""
+    return note
+
+
+def request_permission(tool_name: str, args: dict, preview: str, dangerous: bool = False) -> bool:
     """Returns True if the tool call is allowed to proceed."""
-    if _permission_mode != "manual":
-        return True  # auto mode: bypass (bash has its own dangerous-pattern check)
-    if _permission_callback:
-        return _permission_callback(tool_name, args, preview)
-    return True  # no UI registered, allow
+    global _pending_note
+    from tools.permissions import matches, add_rule
+    cwd = os.getcwd()
+    # auto mode: only dangerous calls need a prompt; everything else is allowed
+    if _permission_mode != "manual" and not dangerous:
+        return True
+    # persistent allowlist (never applies to dangerous commands)
+    if not dangerous and matches(cwd, tool_name, args):
+        return True
+    if not _permission_callback:
+        return not dangerous  # no UI: allow safe calls, block dangerous ones
+    decision = _permission_callback(tool_name, args, preview, dangerous)
+    _pending_note = decision.note or ""
+    if decision.action == "always" and not dangerous:
+        add_rule(cwd, tool_name, args)
+    return decision.action in ("once", "always")
 
 _GROUP_MAP: dict[str, list[str]] = {
     "file_ops": ["read_file", "write_file", "append_file", "edit_file", "list_dir"],

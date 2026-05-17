@@ -116,16 +116,20 @@ class TestPermissions:
         set_permission_callback(None)
         assert request_permission("bash", {"command": "ls"}, "ls") is True
 
-    def test_manual_mode_callback_deny(self):
-        from tools.base import request_permission, set_permission_mode, set_permission_callback
+    def test_manual_mode_callback_deny(self, monkeypatch, tmp_path):
+        import tools.permissions as perms
+        monkeypatch.setattr(perms, "_PERMISSIONS_FILE", tmp_path / "p.json")
+        from tools.base import request_permission, set_permission_mode, set_permission_callback, PermissionDecision
         set_permission_mode("manual")
-        set_permission_callback(lambda name, args, preview: False)
+        set_permission_callback(lambda name, args, preview, dangerous: PermissionDecision("deny", ""))
         assert request_permission("bash", {"command": "ls"}, "ls") is False
 
-    def test_manual_mode_callback_allow(self):
-        from tools.base import request_permission, set_permission_mode, set_permission_callback
+    def test_manual_mode_callback_allow(self, monkeypatch, tmp_path):
+        import tools.permissions as perms
+        monkeypatch.setattr(perms, "_PERMISSIONS_FILE", tmp_path / "p.json")
+        from tools.base import request_permission, set_permission_mode, set_permission_callback, PermissionDecision
         set_permission_mode("manual")
-        set_permission_callback(lambda name, args, preview: True)
+        set_permission_callback(lambda name, args, preview, dangerous: PermissionDecision("once", ""))
         assert request_permission("bash", {"command": "ls"}, "ls") is True
 
     def test_get_set_permission_mode(self):

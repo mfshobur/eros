@@ -3,13 +3,6 @@ from tools.base import BaseTool, register_tool, request_permission, get_permissi
 
 _DANGEROUS_PATTERNS = ["rm ", "rmdir", "dd ", "mkfs", "format", ":(){", "chmod 777", "sudo rm"]
 
-_confirm_callback = None
-
-
-def set_confirm_callback(fn):
-    global _confirm_callback
-    _confirm_callback = fn
-
 
 @register_tool
 class BashExec(BaseTool):
@@ -34,16 +27,9 @@ class BashExec(BaseTool):
     def execute(self, command: str, timeout: int = 30, cwd: str | None = None) -> str:
         timeout = min(int(timeout), self._MAX_TIMEOUT)
         is_dangerous = any(p in command for p in _DANGEROUS_PATTERNS)
-        if get_permission_mode() == "manual":
-            if not request_permission("bash", {"command": command}, command):
+        if get_permission_mode() == "manual" or is_dangerous:
+            if not request_permission("bash", {"command": command}, command, dangerous=is_dangerous):
                 return "Cancelled by user."
-        elif is_dangerous:
-            if _confirm_callback:
-                approved = _confirm_callback(f"Run potentially dangerous command?\n  {command}")
-                if not approved:
-                    return "Cancelled by user."
-            else:
-                return f"Blocked: command matches dangerous pattern. Run manually if intended:\n  {command}"
 
         try:
             result = subprocess.run(
