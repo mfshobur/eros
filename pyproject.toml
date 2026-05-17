@@ -23,6 +23,7 @@ testpaths = ["tests"]
 [project.scripts]
 eros = "main:app"
 eros-telegram = "telegram_bot:main"
+eros-mcp-server = "eros_mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
