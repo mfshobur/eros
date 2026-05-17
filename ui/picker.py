@@ -336,7 +336,6 @@ def pick_model(current: str, ollama_base_url: str = "http://localhost:11434") ->
                 return None
             elif key == "ignore":
                 continue
-
             _move_top()
             rendered, _ = _render_models(models, idx, current, scroll, visible)
             sys.stdout.write(rendered)
@@ -344,3 +343,72 @@ def pick_model(current: str, ollama_base_url: str = "http://localhost:11434") ->
     except Exception:
         _exit_altscreen()
         raise
+
+
+def pick_permission(dangerous: bool, prefix: str) -> tuple[str, str]:
+    """Interactive permission prompt rendered inline below the request panel.
+
+    Returns (action, note) where action is 'once', 'always', or 'deny'.
+    Up/Down move, Enter selects, Tab adds a free-text note to the focused
+    option, Esc denies. The 'always' option is omitted for dangerous commands.
+    """
+    from rich.markup import escape
+    console = Console()
+    short = prefix if len(prefix) <= 40 else prefix[:37] + "..."
+    if dangerous:
+        options = [("once", "Yes"), ("deny", "No")]
+    else:
+        options = [
+            ("once", "Yes"),
+            ("always", f"Yes, and don't ask again for `{escape(short)}` here"),
+            ("deny", "No"),
+        ]
+    idx = 0
+    note = ""
+    note_mode = False
+
+    def render() -> int:
+        lines = []
+        for i, (_, label) in enumerate(options):
+            if i == idx:
+                lines.append(f" [cyan]▶[/cyan] [bold]{label}[/bold]")
+            else:
+                lines.append(f"   [dim]{label}[/dim]")
+        if note_mode:
+            lines.append(f"   [yellow]note:[/yellow] {escape(note[-50:])}█")
+            lines.append("   [dim]Enter confirm  ·  Esc cancel note[/dim]")
+        else:
+            lines.append("   [dim]↑↓ select  ·  Enter confirm  ·  Tab add note[/dim]")
+        for ln in lines:
+            console.print(ln, highlight=False)
+        return len(lines)
+
+    n = render()
+    while True:
+        key = _read_key()
+        if note_mode:
+            if key in ("\r", "\n"):
+                return options[idx][0], note.strip()
+            elif key == "esc":
+                note_mode = False
+                note = ""
+            elif key == "backspace":
+                note = note[:-1]
+            elif key in ("up", "down", "tab", "ignore"):
+                pass
+            elif len(key) == 1 and key.isprintable():
+                note += key
+        else:
+            if key == "up":
+                idx = (idx - 1) % len(options)
+            elif key == "down":
+                idx = (idx + 1) % len(options)
+            elif key in ("\r", "\n"):
+                return options[idx][0], note.strip()
+            elif key == "tab":
+                note_mode = True
+            elif key == "esc":
+                return "deny", ""
+        sys.stdout.write(f"\033[{n}A\033[J")
+        sys.stdout.flush()
+        n = render()

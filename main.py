@@ -17,7 +17,6 @@ from config import load_config, save_default_model
 from agent import Agent, _IMAGE_EXTS
 from ui.input import _clip_images
 from tools.base import load_tools, get_all_tools, set_permission_callback, set_permission_mode, get_permission_mode
-from tools.bash import set_confirm_callback
 from tools.interaction import set_ask_callback
 from rich import box as _box
 from rich.panel import Panel
@@ -31,7 +30,6 @@ from ui.console import (
     print_tool_result,
     print_error,
     print_info,
-    confirm,
 )
 from ui.input import make_session, get_input, make_prompt
 from ui.picker import pick_room, pick_model, PickResult
@@ -71,9 +69,12 @@ _TOOL_LABELS = {
 }
 
 
-def _permission_ui(tool_name: str, args: dict, preview: str) -> bool:
-    """Show a confirmation panel and return True if the user approves."""
+def _permission_ui(tool_name: str, args: dict, preview: str, dangerous: bool = False):
+    """Show a request panel + interactive option prompt. Returns a PermissionDecision."""
     from rich.syntax import Syntax
+    from tools.base import PermissionDecision
+    from tools.permissions import command_prefix
+    from ui.picker import pick_permission
     label, color = _TOOL_LABELS.get(tool_name, (tool_name, "white"))
     path = args.get("path", "")
     header = f"[bold {color}]{label}[/bold {color}]"
@@ -101,7 +102,9 @@ def _permission_ui(tool_name: str, args: dict, preview: str) -> bool:
             border_style=color,
             padding=(0, 1),
         ))
-    return confirm("Allow?", default=True)
+    prefix = command_prefix(args["command"]) if tool_name == "bash" else tool_name
+    action, note = pick_permission(dangerous, prefix)
+    return PermissionDecision(action, note)
 
 
 def _fmt_elapsed(seconds: float) -> str:
@@ -487,7 +490,6 @@ def main(
         config["tools_enabled"] = []
 
     load_tools(config.get("tools_enabled", []), config=config)
-    set_confirm_callback(confirm)
     set_permission_callback(_permission_ui)
     initial_mode = config.get("permission_mode", "auto")
     set_permission_mode(initial_mode)
@@ -748,6 +750,15 @@ def _run_chat(agent: Agent, state: dict, user_input: str, original_input: str = 
         return answer or "(no answer given)"
 
     set_ask_callback(_ask)
+
+    def _permission_with_spinner(tool_name, args, preview, dangerous=False):
+        _stop_md_live()
+        _stop_spinner()
+        decision = _permission_ui(tool_name, args, preview, dangerous)
+        _start_spinner()
+        return decision
+
+    set_permission_callback(_permission_with_spinner)
     _start_spinner()
 
     result: dict = {}

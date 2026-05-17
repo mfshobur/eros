@@ -9,7 +9,7 @@ import sys
 import urllib.request
 from typing import Callable
 
-from tools.base import get_tool_schemas, dispatch_tool, get_all_tools
+from tools.base import get_tool_schemas, dispatch_tool, get_all_tools, consume_permission_note
 
 
 def _get_litellm():
@@ -786,6 +786,10 @@ class Agent:
                     last_tool_error[name] = result
                 else:
                     last_tool_error.pop(name, None)
+
+                note = consume_permission_note()
+                if note:
+                    result = f"{result}\n[User note: {note}]"
 
                 if on_tool_result:
                     on_tool_result(name, result)

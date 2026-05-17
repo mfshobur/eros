@@ -151,15 +151,6 @@ def print_info(msg: str) -> None:
     console.print(f"[dim]{msg}[/dim]")
 
 
-def confirm(prompt: str, default: bool = False) -> bool:
-    console.print(f"\n[yellow]⚠[/yellow]  {prompt}")
-    hint = "Y/n" if default else "y/N"
-    answer = console.input(f"[bold]Allow? ({hint}): [/bold]").strip().lower()
-    if not answer:
-        return default
-    return answer in ("y", "yes")
-
-
 def _short_args(args: dict) -> str:
     parts = []
     for k, v in args.items():

@@ -111,20 +111,28 @@ The agent has two permission modes, similar to Claude Code's "manual approval" f
 
 Toggle mid-session with `/permissions`, or set `permission_mode: manual` in `config.yaml` to always start in manual mode.
 
-In manual mode, each tool call shows a panel like:
+Each permission request shows the request panel followed by a 3-option prompt:
 
 ```
 ╭─ Run command ───────────────────────────────╮
-│  python3 -                                  │
+│  git checkout -b feature                    │
 ╰─────────────────────────────────────────────╯
-Allow? [Y/n]
-
-╭─ Edit file  agent.py:42 ────────────────────╮
-│  - old_function_name                        │
-│  + new_function_name                        │
-╰─────────────────────────────────────────────╯
-Allow? [Y/n]
+ ▶ Yes
+   Yes, and don't ask again for `git checkout` here
+   No
+   ↑↓ select  ·  Enter confirm  ·  Tab add note
 ```
+
+- **Yes** — allow this one call.
+- **Yes, and don't ask again** — allow it *and* remember the command prefix (`git checkout`) for this directory, so the same prefix never prompts again.
+- **No** — deny it.
+- **Tab** — add a free-text note to the focused option. A note on **No** becomes the model's rejection reason; a note on **Yes** is passed as an extra instruction.
+
+### Persistent allowlist
+
+"Don't ask again" rules are saved per-directory to `~/.local/share/eros/permissions.json`. They survive restarts, so manual mode stops nagging you about the safe commands you run constantly while still prompting for anything new. To revoke a rule, edit or delete that file.
+
+**Dangerous commands** (`rm`, `dd`, `mkfs`, `sudo rm`, …) are never allowlistable — they only ever offer Yes-once / No, so a destructive command can't be permanently approved by accident.
 
 ## Model Picker
 
