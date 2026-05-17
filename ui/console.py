@@ -56,6 +56,8 @@ def print_help() -> None:
 
 
 def print_tool_call(name: str, args: dict) -> None:
+    if name == "ask_user":
+        return  # the clarification panel is rendered by the ask callback
     if name == "edit_file" and "path" in args:
         filename = args["path"].split("/")[-1]
         console.print(f"  [dim]▶[/dim] [bold yellow]edit_file[/bold yellow]  [dim]{filename}[/dim]")
@@ -76,6 +78,8 @@ _DEFAULT_PREVIEW_LINES = 5
 
 
 def print_tool_result(name: str, result: str) -> None:
+    if name == "ask_user":
+        return  # the answer is already visible from the prompt exchange
     if result.startswith("EDIT_DIFF\n"):
         _print_edit_diff(result)
         return

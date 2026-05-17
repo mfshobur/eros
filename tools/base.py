@@ -73,7 +73,14 @@ def get_tool_schemas(enabled: list[str] | None = None) -> list[dict]:
     allowed = set()
     for group in enabled:
         allowed.update(_GROUP_MAP.get(group, [group]))
-    return [t.to_schema() for name, t in _REGISTRY.items() if name in allowed]
+    # Tools not belonging to any built-in group (ask_user, MCP tools) were
+    # loaded deliberately and are always exposed; group filtering only gates
+    # the built-in grouped tools.
+    grouped = {name for names in _GROUP_MAP.values() for name in names}
+    return [
+        t.to_schema() for name, t in _REGISTRY.items()
+        if name in allowed or name not in grouped
+    ]
 
 
 def dispatch_tool(name: str, args: dict) -> str:
@@ -104,6 +111,8 @@ def load_tools(enabled: list[str], config: dict | None = None) -> None:
         mod = module_map.get(group)
         if mod:
             importlib.import_module(mod)
+    if enabled:
+        importlib.import_module("tools.interaction")  # ask_user is always available
     if config and config.get("mcp_servers"):
         from tools.mcp import load_mcp_servers
         load_mcp_servers(config)
