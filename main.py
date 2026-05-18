@@ -30,6 +30,7 @@ from ui.console import (
     print_tool_result,
     print_error,
     print_info,
+    print_reliability,
 )
 from ui.input import make_session, get_input, make_prompt
 from ui.picker import pick_room, pick_model, PickResult
@@ -279,6 +280,9 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
     elif command == "/history":
         n = len(agent.history)
         print_info(f"{n} messages in history ({n // 2} turns), room: [cyan]{state['room']}[/cyan]")
+
+    elif command == "/reliability":
+        print_reliability(agent.reliability)
 
     # ── Room management ──────────────────────────────────────────────────────
     elif command == "/rooms":

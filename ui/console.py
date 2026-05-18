@@ -41,6 +41,7 @@ def print_help() -> None:
         "  [cyan]/retry[/cyan]                Regenerate the last response\n"
         "  [cyan]/export [filename][/cyan]    Export current room to a markdown file\n"
         "  [cyan]/history[/cyan]               Show conversation history summary\n"
+        "  [cyan]/reliability[/cyan]          Show tool-call reliability metrics\n"
         "  [cyan]/search <query>[/cyan]        Search across all rooms\n"
         "\n"
         "[bold]Room management:[/bold]\n"
@@ -149,6 +150,28 @@ def print_error(msg: str) -> None:
 
 def print_info(msg: str) -> None:
     console.print(f"[dim]{msg}[/dim]")
+
+
+def print_reliability(metrics) -> None:
+    """Render the per-session tool-call reliability metrics panel."""
+    if metrics.model_turns == 0:
+        console.print(Panel(
+            "[dim]No model turns yet this session.[/dim]",
+            title="Reliability",
+            border_style="cyan",
+            box=box.ROUNDED,
+        ))
+        return
+    body = "\n".join(
+        f"  [cyan]{label:<26}[/cyan] [bold]{value}[/bold]"
+        for label, value in metrics.summary_rows()
+    )
+    console.print(Panel(
+        body,
+        title="Reliability",
+        border_style="cyan",
+        box=box.ROUNDED,
+    ))
 
 
 def _short_args(args: dict) -> str:

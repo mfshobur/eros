@@ -10,6 +10,13 @@ import urllib.request
 from typing import Callable
 
 from tools.base import get_tool_schemas, dispatch_tool, get_all_tools, consume_permission_note
+from tools.reliability import (
+    ReliabilityMetrics,
+    build_constrained_schema,
+    looks_like_tool_narration,
+    parse_constrained_response,
+    validate_tool_args,
+)
 
 
 def _get_litellm():
@@ -381,6 +388,7 @@ class Agent:
         self.show_thinking = config.get("show_thinking", False)
         self.history: list[dict] = []
         self.max_turns = config.get("max_history_turns", 50)
+        self.reliability = ReliabilityMetrics()
 
         if config.get("ollama_base_url"):
             os.environ.setdefault("OLLAMA_API_BASE", config["ollama_base_url"])
@@ -415,6 +423,7 @@ class Agent:
 
     def clear_history(self) -> None:
         self.history = []
+        self.reliability = ReliabilityMetrics()
 
     def _effective_system_prompt(self, tools: list[dict]) -> str:
         """For models without native tool calling, append tool instructions."""
@@ -690,6 +699,16 @@ class Agent:
             script = re.sub(r"\n?```$", "", script)
         return script if script else None
 
+    def _record_call_origin(self, tool_calls: list[dict]) -> None:
+        """Attribute a freshly-parsed call to first-pass vs a salvage parser."""
+        if not tool_calls:
+            return
+        cid = tool_calls[0].get("id", "")
+        if cid.startswith(("heredoc_call_", "salvage_call_")):
+            self.reliability.parser_fallback_uses += 1
+        else:
+            self.reliability.first_pass_tool_calls += 1
+
     def _run_loop(self, messages, tools, on_token, on_thinking, on_tool_call, on_tool_result, think=None) -> tuple[str, int, dict]:
         max_iterations = self.config.get("max_tool_iterations", 8)
         last_tool_error: dict[str, str] = {}
@@ -699,16 +718,43 @@ class Agent:
         total_thinking_tokens = 0
         total_usage: dict = {"prompt": 0, "completion": 0, "total": 0}
 
+        known_tool_names = {t["function"]["name"] for t in tools}
+        constrain_mode = self.config.get("constrained_tool_calls", "auto")
+        is_ollama = self.model.startswith("ollama/") and not _uses_native_tools(self.model)
+
         for iteration in range(max_iterations):
+            constrained_already_tried = False  # ≤1 schema-constrained regen per turn
+
             response_text, thinking_text, tool_calls, usage = self._stream_response(
                 messages, tools, on_token, on_thinking, think
             )
+            self.reliability.model_turns += 1
+            self._record_call_origin(tool_calls)
             if self.config.get("debug"):
                 sys.stderr.write(f"\n[DEBUG iter={iteration}] text={repr(response_text[:200])} tools={[tc['function']['name'] for tc in tool_calls]}\n")
                 sys.stderr.flush()
             total_thinking_tokens += len(thinking_text) // 4
             for k in total_usage:
                 total_usage[k] += usage.get(k, 0)
+
+            # Part 1/3: regenerate a malformed/narrated turn under a schema
+            # constraint so the result is parseable by construction.
+            if (not tool_calls and constrain_mode != "off" and is_ollama
+                    and not constrained_already_tried
+                    and looks_like_tool_narration(response_text, known_tool_names)):
+                constrained_already_tried = True
+                self.reliability.plaintext_narration_caught += 1
+                self.reliability.constrained_retry_uses += 1
+                schema = build_constrained_schema(tools)
+                response_text, thinking_text, tool_calls, usage = self._stream_ollama(
+                    messages, think, on_token, on_thinking, response_format=schema
+                )
+                self.reliability.model_turns += 1
+                total_thinking_tokens += len(thinking_text) // 4
+                for k in total_usage:
+                    total_usage[k] += usage.get(k, 0)
+                if tool_calls or response_text:
+                    self.reliability.constrained_retry_success += 1
 
             if not tool_calls:
                 if _claims_file_change(response_text):
@@ -765,6 +811,27 @@ class Agent:
                 if on_tool_call:
                     on_tool_call(name, args)
 
+                # Validate args against the tool's own schema before dispatch;
+                # a precise error is far more actionable than a generic crash.
+                arg_error = validate_tool_args(name, args, get_all_tools())
+                if arg_error:
+                    self.reliability.arg_validation_failures += 1
+                    if on_tool_result:
+                        on_tool_result(name, arg_error)
+                    if _uses_native_tools(self.model):
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", name),
+                            "name": name,
+                            "content": arg_error,
+                        })
+                    else:
+                        messages.append({
+                            "role": "user",
+                            "content": f"[Tool result for {name}]\n{arg_error}",
+                        })
+                    continue
+
                 result = dispatch_tool(name, args)
 
                 # Post-write verification: confirm edit_file actually changed the file
@@ -808,8 +875,15 @@ class Agent:
                     })
         return "[max tool iterations reached]", total_thinking_tokens, total_usage
 
-    def _stream_ollama(self, messages, think, on_token, on_thinking) -> tuple[str, str, list[dict], dict]:
-        """Direct streaming to Ollama /api/chat, no LiteLLM overhead."""
+    def _stream_ollama(self, messages, think, on_token, on_thinking,
+                       response_format: dict | None = None) -> tuple[str, str, list[dict], dict]:
+        """Direct streaming to Ollama /api/chat, no LiteLLM overhead.
+
+        When ``response_format`` is given (a JSON Schema), it is sent as
+        Ollama's ``format`` parameter to grammar-constrain the output, and the
+        raw JSON is parsed back via ``parse_constrained_response`` instead of
+        being echoed to the user.
+        """
         base_url = self.config.get("ollama_base_url", "http://localhost:11434")
         model_name = self.model.split("/", 1)[-1]
 
@@ -820,6 +894,10 @@ class Agent:
             "stream": True,
             "options": options,
         }
+        if response_format is not None:
+            body["format"] = response_format
+        # Under a format constraint the stream is raw JSON — never echo it.
+        emit_token = None if response_format is not None else on_token
 
         # think flag (Qwen3 / DeepSeek style)
         model_defaults = self.config.get("model_defaults", {})
@@ -892,13 +970,25 @@ class Agent:
 
                     if content:
                         response_chunks.append(content)
-                        if on_token:
-                            on_token(content)
+                        if emit_token:
+                            emit_token(content)
         except KeyboardInterrupt:
             raise
 
         response_text = "".join(response_chunks).strip()
         thinking_text = "".join(thinking_chunks)
+
+        # Constrained turn: parse the schema-shaped JSON, don't run the salvage chain.
+        if response_format is not None:
+            calls, message = parse_constrained_response(
+                response_text, set(get_all_tools().keys())
+            )
+            if calls:
+                return "", thinking_text, calls, usage
+            answer = message if message is not None else response_text
+            if answer and on_token:
+                on_token(answer)
+            return answer, thinking_text, [], usage
 
         heredoc_calls = _parse_heredoc_tool_call(response_text)
         if heredoc_calls:
