@@ -241,6 +241,19 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
             elif chosen == agent.model:
                 print_info(f"Kept model: [cyan]{agent.model}[/cyan]")
         else:
+            if arg.startswith("ollama/"):
+                ollama_url = agent.config.get("ollama_base_url", "http://localhost:11434")
+                try:
+                    available = _ollama_model_ids(ollama_url)
+                    if available and arg not in available:
+                        print_error(
+                            f"Model [cyan]{arg}[/cyan] not found in Ollama. "
+                            f"Pull it first with: [bold]ollama pull {arg[len('ollama/'):]}"
+                            f"[/bold]  or use [bold]/model[/bold] to pick from available models."
+                        )
+                        return
+                except Exception:
+                    pass  # Ollama unreachable — allow switch, error will surface on next message
             agent.switch_model(arg)
             rooms.save_meta(state["room"], {"model": arg})
             save_default_model(arg)
