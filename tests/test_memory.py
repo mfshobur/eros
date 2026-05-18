@@ -49,6 +49,23 @@ class TestSaveMemory:
         save_memory("b: 2", max_memories=2)
         assert len(load_memories()) == 2
 
+    def test_duplicate_key_replaces_in_place(self, mem_file):
+        from memory.rooms import save_memory, load_memories
+        save_memory("name: Alice")
+        save_memory("lang: Python")
+        save_memory("name: Bob")  # update existing key
+        result = load_memories()
+        assert result == ["name: Bob", "lang: Python"]
+        assert len(result) == 2  # no duplicate
+
+    def test_duplicate_key_does_not_count_against_cap(self, mem_file):
+        from memory.rooms import save_memory, load_memories
+        save_memory("a: 1", max_memories=2)
+        save_memory("b: 2", max_memories=2)
+        # Updating "a" should succeed even though we're at cap
+        assert save_memory("a: updated", max_memories=2) is True
+        assert len(load_memories()) == 2
+
 
 class TestDeleteMemory:
     def test_removes_matching_entries(self, mem_file):

@@ -45,7 +45,7 @@ def _terminal_height() -> int:
 
 
 def _render_rooms(rooms: list[dict], idx: int, mode: str, rename_buf: str,
-                  scroll: int, visible: int) -> tuple[str, int]:
+                  scroll: int, visible: int, rename_error: str = "") -> tuple[str, int]:
     buf = io.StringIO()
     w = Console().width or 100
     tmp = Console(file=buf, highlight=False, markup=True, width=w)
@@ -87,8 +87,9 @@ def _render_rooms(rooms: list[dict], idx: int, mode: str, rename_buf: str,
     else:
         scroll_info = ""
 
+    error_line = f"\n{rename_error}" if rename_error else ""
     if mode == "select":
-        hint = f"[dim]↑↓ navigate  ·  Enter select  ·  Tab rename  ·  Esc cancel[/dim]{scroll_info}"
+        hint = f"[dim]↑↓ navigate  ·  Enter select  ·  Tab rename  ·  Esc cancel[/dim]{scroll_info}{error_line}"
     else:
         selected = rooms[idx]["name"] if rooms else ""
         hint = (
@@ -194,11 +195,12 @@ def pick_room(room_list: list[dict], current: str, console: Console) -> PickResu
     scroll = max(0, min(idx - visible // 2, len(room_list) - visible))
     mode = "select"
     rename_buf = ""
+    rename_error = ""
     pending_rename: list[tuple[str, str]] = []
 
     _enter_altscreen()
     try:
-        rendered, _ = _render_rooms(room_list, idx, mode, rename_buf, scroll, visible)
+        rendered, _ = _render_rooms(room_list, idx, mode, rename_buf, scroll, visible, rename_error)
         sys.stdout.write(rendered)
         sys.stdout.flush()
 
@@ -209,6 +211,8 @@ def pick_room(room_list: list[dict], current: str, console: Console) -> PickResu
                 continue
 
             if mode == "select":
+                if key in ("up", "down"):
+                    rename_error = ""
                 if key == "up":
                     idx = (idx - 1) % len(room_list)
                     if idx < scroll:
@@ -246,6 +250,9 @@ def pick_room(room_list: list[dict], current: str, console: Console) -> PickResu
                         if _rooms.rename_room(old_name, new_slug):
                             room_list[idx]["name"] = new_slug
                             pending_rename.append((old_name, new_slug))
+                            rename_error = ""
+                        else:
+                            rename_error = f"[red]'{new_slug}' already exists[/red]"
                     mode = "select"
                     rename_buf = ""
                 elif key == "backspace":
@@ -257,7 +264,7 @@ def pick_room(room_list: list[dict], current: str, console: Console) -> PickResu
                     rename_buf += key
 
             _move_top()
-            rendered, _ = _render_rooms(room_list, idx, mode, rename_buf, scroll, visible)
+            rendered, _ = _render_rooms(room_list, idx, mode, rename_buf, scroll, visible, rename_error)
             sys.stdout.write(rendered)
             sys.stdout.flush()
     except Exception:

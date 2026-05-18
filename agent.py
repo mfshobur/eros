@@ -6,6 +6,7 @@ import platform
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from typing import Callable
 
@@ -974,6 +975,11 @@ class Agent:
                             emit_token(content)
         except KeyboardInterrupt:
             raise
+        except urllib.error.URLError as e:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {base_url}. "
+                f"Make sure Ollama is running: ollama serve"
+            ) from e
 
         response_text = "".join(response_chunks).strip()
         thinking_text = "".join(thinking_chunks)

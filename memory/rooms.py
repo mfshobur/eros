@@ -176,8 +176,29 @@ def load_memories() -> list[str]:
 
 
 def save_memory(entry: str, max_memories: int = 20) -> bool:
-    """Append a 'key: value' entry. Returns False if cap reached."""
-    if len(load_memories()) >= max_memories:
+    """Append a 'key: value' entry. Returns False if cap reached.
+
+    If an entry with the same key already exists, it is replaced in-place.
+    """
+    key = entry.split(":", 1)[0].strip().lower() if ":" in entry else ""
+    existing = load_memories()
+
+    # Replace existing entry with same key
+    if key:
+        updated = []
+        replaced = False
+        for line in existing:
+            if line.split(":", 1)[0].strip().lower() == key:
+                updated.append(entry.strip())
+                replaced = True
+            else:
+                updated.append(line)
+        if replaced:
+            _MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _MEMORY_FILE.write_text("\n".join(updated) + "\n")
+            return True
+
+    if len(existing) >= max_memories:
         return False
     _MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with _MEMORY_FILE.open("a") as f:

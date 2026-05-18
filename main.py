@@ -42,6 +42,9 @@ import urllib.request
 app = typer.Typer(add_completion=False)
 
 
+_TELEGRAM_DECLINED_FILE = Path.home() / ".local" / "share" / "eros" / ".telegram_declined"
+
+
 def _start_telegram(config: dict) -> None:
     try:
         import telegram_bot
@@ -51,8 +54,11 @@ def _start_telegram(config: dict) -> None:
     if token:
         telegram_bot.run_in_thread(config)
         print("Telegram bot running in background.")
-    else:
-        telegram_bot.setup_interactive(config)
+    elif not _TELEGRAM_DECLINED_FILE.exists():
+        configured = telegram_bot.setup_interactive(config)
+        if not configured:
+            _TELEGRAM_DECLINED_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _TELEGRAM_DECLINED_FILE.touch()
 
 
 def _ollama_model_ids(base_url: str) -> set[str]:
@@ -235,6 +241,19 @@ def handle_slash_command(cmd: str, agent: Agent, state: dict) -> None:
             elif chosen == agent.model:
                 print_info(f"Kept model: [cyan]{agent.model}[/cyan]")
         else:
+            if arg.startswith("ollama/"):
+                ollama_url = agent.config.get("ollama_base_url", "http://localhost:11434")
+                try:
+                    available = _ollama_model_ids(ollama_url)
+                    if available and arg not in available:
+                        print_error(
+                            f"Model [cyan]{arg}[/cyan] not found in Ollama. "
+                            f"Pull it first with: [bold]ollama pull {arg[len('ollama/'):]}"
+                            f"[/bold]  or use [bold]/model[/bold] to pick from available models."
+                        )
+                        return
+                except Exception:
+                    pass  # Ollama unreachable — allow switch, error will surface on next message
             agent.switch_model(arg)
             rooms.save_meta(state["room"], {"model": arg})
             save_default_model(arg)
